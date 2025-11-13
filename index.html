@@ -1,14 +1,27 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
-  <head>
-    <meta charset="utf-8" />
-    <title>mapBremerhaven AR</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <style>
-      body { margin: 0; overflow: hidden; background: #000; }
-    </style>
-  </head>
-  <body>
-    <script type="module" src="./app.js"></script>
-  </body>
+<head>
+  <meta charset="utf-8">
+  <title>AR Hit Test – einmaliges Platzieren</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    body { margin: 0; overflow: hidden; font-family: sans-serif; }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1;
+      color: #fff;
+      background: rgba(0,0,0,0.4);
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">three.js — AR Hit Test (einmaliges Platzieren)</div>
+
+  <!-- Dein WebXR-Canvas wird hier automatisch eingefügt -->
+  <script type="module" src="./app.js"></script>
+</body>
 </html>
