@@ -191,8 +191,8 @@ function createPOIMarkers() {
   pointsOfInterest.forEach(poi => {
     const markerGroup = new THREE.Group();
 
-    // Basis - größer für bessere Sichtbarkeit
-    const baseGeometry = new THREE.CylinderGeometry(0.02, 0.025, 0.05, 8);
+    // VIEL GRÖßER: Marker müssen im Maßstab des normalisierten Modells sein (0-1 Bereich)
+    const baseGeometry = new THREE.CylinderGeometry(30, 40, 80, 8);
     const baseMaterial = new THREE.MeshStandardMaterial({
       color: 0xff6b35,
       emissive: 0xff6b35,
@@ -201,26 +201,26 @@ function createPOIMarkers() {
     const base = new THREE.Mesh(baseGeometry, baseMaterial);
     markerGroup.add(base);
 
-    // Kugel - heller und größer
-    const sphereGeometry = new THREE.SphereGeometry(0.03, 16, 16);
+    // Kugel - viel größer
+    const sphereGeometry = new THREE.SphereGeometry(50, 16, 16);
     const sphereMaterial = new THREE.MeshStandardMaterial({
       color: 0xffff00,
       emissive: 0xffff00,
       emissiveIntensity: 2
     });
     const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-    sphere.position.y = 0.05;
+    sphere.position.y = 80;
     markerGroup.add(sphere);
 
-    // Ring - animiert und leuchtend
-    const ringGeometry = new THREE.TorusGeometry(0.04, 0.005, 8, 16);
+    // Ring - größer
+    const ringGeometry = new THREE.TorusGeometry(60, 8, 8, 16);
     const ringMaterial = new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
       opacity: 0.8
     });
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-    ring.position.y = 0.05;
+    ring.position.y = 80;
     ring.rotation.x = Math.PI / 2;
     markerGroup.add(ring);
     markerGroup.userData.ring = ring;
