@@ -173,6 +173,10 @@ import * as THREE from 'three';
     }
 
     function positionPOIMarkers() {
+      // Berechne den Normalisierungsfaktor aus dem Originalmodell
+      const originalMaxDim = mapModel.userData.originalMaxDim || 1;
+      const normalizeScale = 1.0 / originalMaxDim;
+
       // Durchsuche das geladene Modell nach Objekten mit POI-Namen
       mapModel.traverse((child) => {
         pointsOfInterest.forEach((poi, index) => {
@@ -185,28 +189,32 @@ import * as THREE from 'three';
             const bbox = new THREE.Box3().setFromObject(child);
             const center = bbox.getCenter(new THREE.Vector3());
             
-            // WICHTIG: Position ist relativ zum Modell (nicht absolut!)
-            // Wir speichern die Weltposition relativ zum Modell-Zentrum
+            // Berechne Position relativ zum Modellzentrum UND normalisiert
             const modelCenter = mapModel.userData.originalCenter;
             
             poi.position = {
-              x: center.x - modelCenter.x,
-              y: center.y - modelCenter.y,
-              z: center.z - modelCenter.z
+              x: (center.x - modelCenter.x) * normalizeScale,
+              y: (center.y - modelCenter.y) * normalizeScale,
+              z: (center.z - modelCenter.z) * normalizeScale
             };
             
-            console.log(`✓ POI gefunden: ${poi.name} - Relative Position:`, poi.position);
+            console.log(`✓ POI gefunden: ${poi.name} - Normalisierte Position:`, poi.position);
           }
         });
       });
 
-      // Setze Marker-Positionen RELATIV zum Modell
+      // Setze Marker-Positionen NORMALISIERT relativ zum Modell
       poiMarkers.forEach((marker, index) => {
         const poi = pointsOfInterest[index];
         if (poi.position) {
           // Marker wird child vom mapModel, damit er mit skaliert
-          marker.position.set(poi.position.x, poi.position.y + 0.02, poi.position.z);
-          mapModel.add(marker); // WICHTIG: Marker ist jetzt child von mapModel!
+          // Position ist bereits normalisiert, füge nur kleine Y-Offset hinzu
+          marker.position.set(
+            poi.position.x, 
+            poi.position.y + 0.01, // Kleinerer Offset da normalisiert
+            poi.position.z
+          );
+          mapModel.add(marker);
           console.log(`✓ Marker platziert für: ${poi.name}`);
         } else {
           console.warn(`⚠️ Objekt nicht gefunden in Blender-Modell: ${poi.blenderName}`);
