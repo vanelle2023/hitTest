@@ -139,6 +139,11 @@ import * as THREE from 'three';
       
       dayNightBtn.addEventListener('click', toggleDayNight);
       closePOI.addEventListener('click', () => poiCard.classList.add('hidden'));
+      
+      // Desktop Info minimieren beim Klicken
+      desktopInfo.addEventListener('click', () => {
+        desktopInfo.classList.toggle('minimized');
+      });
     }
 
     function loadMapModel() {
@@ -180,28 +185,33 @@ import * as THREE from 'three';
             const bbox = new THREE.Box3().setFromObject(child);
             const center = bbox.getCenter(new THREE.Vector3());
             
-            // Speichere Position für später
+            // WICHTIG: Position ist relativ zum Modell (nicht absolut!)
+            // Wir speichern die Weltposition relativ zum Modell-Zentrum
+            const modelCenter = mapModel.userData.originalCenter;
+            
             poi.position = {
-              x: center.x,
-              y: center.y,
-              z: center.z
+              x: center.x - modelCenter.x,
+              y: center.y - modelCenter.y,
+              z: center.z - modelCenter.z
             };
             
-            console.log(`✓ POI gefunden: ${poi.name} an Position:`, center);
+            console.log(`✓ POI gefunden: ${poi.name} - Relative Position:`, poi.position);
           }
         });
       });
 
-      // Setze Marker-Positionen
+      // Setze Marker-Positionen RELATIV zum Modell
       poiMarkers.forEach((marker, index) => {
         const poi = pointsOfInterest[index];
         if (poi.position) {
+          // Marker wird child vom mapModel, damit er mit skaliert
           marker.position.set(poi.position.x, poi.position.y + 0.02, poi.position.z);
-          console.log(`Marker platziert für: ${poi.name}`);
+          mapModel.add(marker); // WICHTIG: Marker ist jetzt child von mapModel!
+          console.log(`✓ Marker platziert für: ${poi.name}`);
         } else {
           console.warn(`⚠️ Objekt nicht gefunden in Blender-Modell: ${poi.blenderName}`);
-          // Fallback: Platziere am Ursprung
           marker.position.set(0, 0.01, 0);
+          mapModel.add(marker);
         }
       });
     }
@@ -270,10 +280,15 @@ import * as THREE from 'three';
       head.position.y = 0.028;
       characterGroup.add(head);
 
+      // Character wird child vom Modell (damit er mit skaliert)
       characterGroup.position.set(0, 0.001, 0);
       characterGroup.visible = false;
 
-      scene.add(characterGroup);
+      // Warte bis Modell geladen ist
+      if (mapModel) {
+        mapModel.add(characterGroup);
+      }
+      
       character = characterGroup;
     }
 
@@ -351,15 +366,23 @@ import * as THREE from 'three';
       const intersects = raycaster.intersectObjects(poiMarkers, true);
 
       if (intersects.length > 0) {
-        const marker = intersects[0].object.parent;
-        if (marker.userData.poi) {
+        let marker = intersects[0].object;
+        
+        // Finde das Marker-Group (parent könnte mehrere Ebenen hoch sein)
+        while (marker && !marker.userData.poi) {
+          marker = marker.parent;
+        }
+        
+        if (marker && marker.userData.poi) {
           const poi = marker.userData.poi;
           showPOIInfo(poi);
           visitedPOIs.add(poi.id);
           updatePOICounter();
 
           if (character) {
-            animateCharacterTo(marker.position.clone());
+            const worldPos = new THREE.Vector3();
+            marker.getWorldPosition(worldPos);
+            animateCharacterTo(worldPos);
           }
         }
       }
@@ -384,9 +407,11 @@ import * as THREE from 'three';
       document.getElementById('poiCounter').textContent = `${visitedPOIs.size}/8`;
     }
 
-    function animateCharacterTo(targetPos) {
+    function animateCharacterTo(targetWorldPos) {
       if (!character) return;
 
+      // Konvertiere Weltposition zu lokaler Position relativ zum Modell
+      const targetLocalPos = mapModel.worldToLocal(targetWorldPos.clone());
       const startPos = character.position.clone();
       const duration = 1000;
       const startTime = Date.now();
@@ -399,7 +424,7 @@ import * as THREE from 'three';
           ? 2 * progress * progress
           : -1 + (4 - 2 * progress) * progress;
 
-        character.position.lerpVectors(startPos, targetPos, eased);
+        character.position.lerpVectors(startPos, targetLocalPos, eased);
         character.position.y = 0.001 + Math.sin(progress * Math.PI) * 0.01;
 
         if (progress < 1) {

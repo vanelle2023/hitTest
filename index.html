@@ -184,12 +184,46 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: white;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
       border-radius: 20px;
       padding: 40px;
       max-width: 500px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
       text-align: center;
+      z-index: 50;
+    }
+    
+    .desktop-info.minimized {
+      top: 20px;
+      left: 20px;
+      transform: none;
+      padding: 16px 20px;
+      max-width: 300px;
+      cursor: pointer;
+    }
+    
+    .desktop-info.minimized h2,
+    .desktop-info.minimized p,
+    .desktop-info.minimized .feature-list {
+      display: none;
+    }
+    
+    .desktop-info.minimized .icon-nav {
+      width: 32px;
+      height: 32px;
+      margin: 0;
+    }
+    
+    .desktop-info.minimized .icon-nav svg {
+      width: 16px;
+      height: 16px;
+    }
+    
+    .minimize-hint {
+      font-size: 12px;
+      color: #999;
+      margin-top: 16px;
     }
     
     .desktop-info h2 {
@@ -328,6 +362,7 @@
         <span>Sammle alle 8 Orte!</span>
       </div>
     </div>
+    <p class="minimize-hint">💡 Klicke hier um zu minimieren</p>
   </div>
 
   <!-- Dein WebXR-Canvas wird hier automatisch eingefügt -->
