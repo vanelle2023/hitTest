@@ -1,8 +1,7 @@
-import * as THREE from 'https://threejs.org/build/three.module.js';
-import { ARButton } from 'https://threejs.org/examples/jsm/webxr/ARButton.js';
-import { GLTFLoader } from 'https://threejs.org/examples/jsm/loaders/GLTFLoader.js'; // <- Hinzugefügt
-// OrbitControls wird für den Desktop-Modus nützlich sein
-import { OrbitControls } from 'https://threejs.org/examples/jsm/controls/OrbitControls.js'; // <- Hinzugefügt
+import * as THREE from 'three'; // <- SAUBER: "three" statt voller URL
+import { ARButton } from 'three/addons/webxr/ARButton.js'; // <- SAUBER: "three/addons/..."
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'; // <- SAUBER
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'; // <- SAUBER
 
 let camera, scene, renderer, controls; // controls hinzugefügt
 let controller;
