@@ -1,26 +1,22 @@
-import * as THREE from 'https://threejs.org/build/three.module.js';
-import { ARButton } from 'https://threejs.org/examples/jsm/webxr/ARButton.js';
+import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
+import { GLTFLoader } from 'https://unpkg.com/three@0.158.0/examples/jsm/loaders/GLTFLoader.js';
+import { ARButton } from 'https://unpkg.com/three@0.158.0/examples/jsm/webxr/ARButton.js';
 
-let camera, scene, renderer;
-let controller;
-let reticle;
+let scene, camera, renderer;
+let reticle, controller;
 let hitTestSource = null;
 let hitTestSourceRequested = false;
-let objectPlaced = false; // 🔹 Zustand, ob bereits platziert wurde
+let model = null;
+let modelPlaced = false; // Nur einmal platzieren erlaubt
 
 init();
 animate();
 
 function init() {
-  const container = document.createElement('div');
-  document.body.appendChild(container);
+  const container = document.getElementById('container');
 
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-
-  const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-  light.position.set(0.5, 1, 0.25);
-  scene.add(light);
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -28,23 +24,51 @@ function init() {
   renderer.xr.enabled = true;
   container.appendChild(renderer.domElement);
 
+  const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1.2);
+  light.position.set(0.5, 1, 0.25);
+  scene.add(light);
+
+  // --- AR Button aktivieren ---
   document.body.appendChild(
     ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] })
   );
 
-  controller = renderer.xr.getController(0);
-  controller.addEventListener('select', onSelect);
-  scene.add(controller);
-
-  // 🔹 Reticle (Kreis)
-  const ringGeometry = new THREE.RingGeometry(0.07, 0.09, 32).rotateX(-Math.PI / 2);
-  const ringMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-  reticle = new THREE.Mesh(ringGeometry, ringMaterial);
+  // --- Reticle (Kreis) ---
+  const ringGeo = new THREE.RingGeometry(0.07, 0.09, 32).rotateX(-Math.PI / 2);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+  reticle = new THREE.Mesh(ringGeo, ringMat);
   reticle.matrixAutoUpdate = false;
   reticle.visible = false;
   scene.add(reticle);
 
-  window.addEventListener('resize', onWindowResize, false);
+  // --- Controller für Klick/Select ---
+  controller = renderer.xr.getController(0);
+  controller.addEventListener('select', onSelect);
+  scene.add(controller);
+
+  // --- GLTF Modell laden ---
+  const loader = new GLTFLoader();
+  loader.load(
+    'mapBremerhaven2.glb',
+    (gltf) => {
+      model = gltf.scene;
+      model.scale.setScalar(0.2); // 🔹 kleiner für AR
+      model.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      });
+
+      // Im normalen Browser anzeigen (nicht AR)
+      scene.add(model);
+      model.position.set(0, 0, -1.2);
+    },
+    undefined,
+    (error) => console.error('Fehler beim Laden von mapBremerhaven.glb:', error)
+  );
+
+  window.addEventListener('resize', onWindowResize);
 }
 
 function onWindowResize() {
@@ -53,40 +77,33 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
+// --- Objekt in AR platzieren ---
 function onSelect() {
-  // 🔹 Nur ausführen, wenn Reticle sichtbar ist und noch kein Objekt platziert wurde
-  if (reticle.visible && !objectPlaced) {
-    const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-    const material = new THREE.MeshPhongMaterial({ color: 0xffffff * Math.random() });
-    const mesh = new THREE.Mesh(geometry, material);
+  if (reticle.visible && model && !modelPlaced) {
+    const clone = model.clone(true);
+    clone.position.setFromMatrixPosition(reticle.matrix);
+    clone.quaternion.setFromRotationMatrix(reticle.matrix);
+    clone.scale.setScalar(0.2); // 🔹 etwas kleiner in AR
+    scene.add(clone);
 
-    mesh.position.setFromMatrixPosition(reticle.matrix);
-    mesh.quaternion.setFromRotationMatrix(reticle.matrix);
-    scene.add(mesh);
-
-    // 🔹 Nach Platzierung:
-    objectPlaced = true;
+    modelPlaced = true;
     reticle.visible = false;
     hitTestSource = null;
   }
 }
 
+// --- Render-Schleife ---
 function animate() {
   renderer.setAnimationLoop(render);
 }
 
+// --- Rendering & AR Hit Test ---
 function render(timestamp, frame) {
-  // 🔹 Wenn bereits platziert, kein Hit-Test mehr
-  if (objectPlaced) {
-    renderer.render(scene, camera);
-    return;
-  }
-
-  if (frame) {
+  if (frame && !modelPlaced) {
     const referenceSpace = renderer.xr.getReferenceSpace();
     const session = renderer.xr.getSession();
 
-    if (hitTestSourceRequested === false) {
+    if (!hitTestSourceRequested) {
       session.requestReferenceSpace('viewer').then((refSpace) => {
         session.requestHitTestSource({ space: refSpace }).then((source) => {
           hitTestSource = source;
@@ -103,7 +120,6 @@ function render(timestamp, frame) {
 
     if (hitTestSource) {
       const hitTestResults = frame.getHitTestResults(hitTestSource);
-
       if (hitTestResults.length) {
         const hit = hitTestResults[0];
         const pose = hit.getPose(referenceSpace);
