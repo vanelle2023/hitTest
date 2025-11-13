@@ -89,11 +89,17 @@ function loadMapModel() {
     loader.load('mapBremerhaven2.glb', (gltf) => {
         mapModel = gltf.scene;
         
-        // Skalierung und Zentrierung für Desktop (Optional, aber gut)
+        // --- Skalierung und Centering ---
         const box = new THREE.Box3().setFromObject(mapModel);
         const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const scale = 1.0 / maxDim * 1.5; // Skaliere die Map so, dass sie groß in der Desktop-Ansicht ist
+        
+        // 1. UNSKALIERTE MAX-DIMENSION SPEICHERN
+        mapModel.userData.originalMaxDim = Math.max(size.x, size.y, size.z); 
+        
+        const maxDim = mapModel.userData.originalMaxDim;
+
+        // Skalierung für Desktop
+        const scale = 1.0 / maxDim * 1.5; 
         mapModel.scale.setScalar(scale);
 
         const center = box.getCenter(new THREE.Vector3());
@@ -122,16 +128,24 @@ function onSelect() {
     mapModel.position.setFromMatrixPosition(reticle.matrix);
     mapModel.quaternion.setFromRotationMatrix(reticle.matrix);
     
-    // Skaliere die Map klein für den AR-Modus (z.B. 20% der Originalgröße im AR-Kontext)
-    const arScale = 0.2; 
-    mapModel.scale.setScalar(arScale); 
+    // --- KORRIGIERTE SKALIERUNGSLOGIK ---
+    const AR_TARGET_MAX_DIM = 0.5; // Zielgröße: Längste Kante soll 50 cm betragen
+    
+    // Lese die gespeicherte, unskalierte maximale Dimension
+    const originalMaxDim = mapModel.userData.originalMaxDim || 1; // Fallback auf 1
+    
+    // AR Skalierung = (Gewünschte AR-Größe in Metern) / (Ursprüngliche Modellgröße in Einheiten)
+    const finalARScale = AR_TARGET_MAX_DIM / originalMaxDim; 
+    
+    mapModel.scale.setScalar(finalARScale); 
+    // ------------------------------------
 
-    mapModel.visible = true; // <- WICHTIG: sichtbar machen!
+    mapModel.visible = true; 
     
     // Nach Platzierung:
     objectPlaced = true;
     reticle.visible = false;
-    hitTestSource = null; // Hit Test deaktivieren
+    hitTestSource = null; 
   }
 }
 
