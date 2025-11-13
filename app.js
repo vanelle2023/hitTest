@@ -1,15 +1,15 @@
-import * as THREE from 'three'; // <- SAUBER: "three" statt voller URL
-import { ARButton } from 'three/addons/webxr/ARButton.js'; // <- SAUBER: "three/addons/..."
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'; // <- SAUBER
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js'; // <- SAUBER
+import * as THREE from 'three';
+import { ARButton } from 'three/addons/webxr/ARButton.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-let camera, scene, renderer, controls; // controls hinzugefügt
+let camera, scene, renderer, controls;
 let controller;
 let reticle;
 let hitTestSource = null;
 let hitTestSourceRequested = false;
 let objectPlaced = false; 
-let mapModel = null; // <- Variable für das 3D-Modell
+let mapModel = null;
 
 init();
 animate();
@@ -19,20 +19,21 @@ function init() {
   document.body.appendChild(container);
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xddeeff); // Hintergrundfarbe für Desktop
+  scene.background = new THREE.Color(0xddeeff);
 
   camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
-  camera.position.set(0, 1.5, 3); // Position für Desktop-Ansicht
+  camera.position.set(0, 1.5, 3);
 
-  // --- Lichter ---
+  // Lichter
   const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
+  
   const dirLight = new THREE.DirectionalLight(0xffffff, 1);
   dirLight.position.set(5, 5, 5);
   scene.add(dirLight);
 
-  // --- Renderer ---
+  // Renderer
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -40,33 +41,36 @@ function init() {
   renderer.xr.enabled = true;
   container.appendChild(renderer.domElement);
   
-  // --- OrbitControls für Desktop-Ansicht ---
+  // OrbitControls für Desktop
   controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 0, 0);
+  controls.enableDamping = true;
   controls.update();
 
-  // --- AR Button ---
+  // AR Button
   document.body.appendChild(
     ARButton.createButton(renderer, { 
-        requiredFeatures: ['hit-test', 'local-floor'] // <- local-floor hinzugefügt
+      requiredFeatures: ['hit-test', 'local-floor']
     })
   );
   
-  // --- AR Session Event Listeners (WICHTIG) ---
+  // AR Session Events
   renderer.xr.addEventListener('sessionstart', () => {
-    if (mapModel) mapModel.visible = false; // <- Modell bei AR-Start ausblenden
-    objectPlaced = false; // Zurücksetzen für neue Platzierung
-    hitTestSourceRequested = false; // HitTest-Quelle muss neu angefordert werden
+    if (mapModel) mapModel.visible = false;
+    objectPlaced = false;
+    hitTestSourceRequested = false;
     hitTestSource = null;
   });
 
   renderer.xr.addEventListener('sessionend', () => {
-    if (mapModel) mapModel.visible = true; // <- Modell bei AR-Ende wieder anzeigen (Desktop)
-    if (mapModel) mapModel.position.set(0, 0, 0); // <- Position zurücksetzen (optional)
+    if (mapModel) {
+      mapModel.visible = true;
+      // Setze Desktop-Position und -Skalierung zurück
+      setupDesktopView();
+    }
   });
 
-
-  // --- Controller und Reticle ---
+  // Controller und Reticle
   controller = renderer.xr.getController(0);
   controller.addEventListener('select', onSelect);
   scene.add(controller);
@@ -78,39 +82,59 @@ function init() {
   reticle.visible = false;
   scene.add(reticle);
   
-  // --- GLTF Modell laden ---
+  // Modell laden
   loadMapModel();
 
   window.addEventListener('resize', onWindowResize, false);
 }
 
 function loadMapModel() {
-    const loader = new GLTFLoader();
-    loader.load('mapBremerhaven2.glb', (gltf) => {
-        mapModel = gltf.scene;
-        
-        // --- Skalierung und Centering ---
-        const box = new THREE.Box3().setFromObject(mapModel);
-        const size = box.getSize(new THREE.Vector3());
-        
-        // 1. UNSKALIERTE MAX-DIMENSION SPEICHERN
-        mapModel.userData.originalMaxDim = Math.max(size.x, size.y, size.z); 
-        
-        const maxDim = mapModel.userData.originalMaxDim;
+  const loader = new GLTFLoader();
+  loader.load('mapBremerhaven2.glb', (gltf) => {
+    mapModel = gltf.scene;
+    
+    // WICHTIG: Erst Bounding Box vom UNSKALIERTEN Modell berechnen
+    const box = new THREE.Box3().setFromObject(mapModel);
+    const size = box.getSize(new THREE.Vector3());
+    
+    // Speichere die ORIGINALE maximale Dimension (unskaliert)
+    mapModel.userData.originalMaxDim = Math.max(size.x, size.y, size.z);
+    
+    // Speichere auch das Zentrum des unskalierten Modells
+    mapModel.userData.originalCenter = box.getCenter(new THREE.Vector3());
+    
+    scene.add(mapModel);
+    
+    // Setze Desktop-Ansicht
+    setupDesktopView();
+    
+    mapModel.visible = true;
+    
+  }, undefined, (error) => {
+    console.error('Fehler beim Laden des Modells:', error);
+  });
+}
 
-        // Skalierung für Desktop
-        const scale = 1.0 / maxDim * 1.5; 
-        mapModel.scale.setScalar(scale);
-
-        const center = box.getCenter(new THREE.Vector3());
-        mapModel.position.set(-center.x, 0, -center.z); // Zentriere am Boden
-
-        // Setze das Modell für den Start als sichtbar (Desktop-Modus)
-        mapModel.visible = true;
-        scene.add(mapModel);
-    }, undefined, (error) => {
-        console.error('Fehler beim Laden des Modells:', error);
-    });
+function setupDesktopView() {
+  if (!mapModel) return;
+  
+  const originalMaxDim = mapModel.userData.originalMaxDim || 1;
+  const originalCenter = mapModel.userData.originalCenter || new THREE.Vector3();
+  
+  // Desktop-Skalierung: Modell soll ca. 2 Einheiten groß sein
+  const desktopScale = 2.0 / originalMaxDim;
+  mapModel.scale.setScalar(desktopScale);
+  
+  // Zentriere das Modell am Ursprung (berücksichtige die Skalierung)
+  mapModel.position.set(
+    -originalCenter.x * desktopScale,
+    -originalCenter.y * desktopScale, 
+    -originalCenter.z * desktopScale
+  );
+  
+  // Kamera und Controls auf das Modell ausrichten
+  controls.target.set(0, 0, 0);
+  controls.update();
 }
 
 function onWindowResize() {
@@ -120,33 +144,23 @@ function onWindowResize() {
 }
 
 function onSelect() {
-  if (!mapModel) return;
+  if (!mapModel || !reticle.visible || objectPlaced) return;
 
-  if (reticle.visible && !objectPlaced) {
-    
-    // Setze Position und Rotation der MAP vom Reticle
-    mapModel.position.setFromMatrixPosition(reticle.matrix);
-    mapModel.quaternion.setFromRotationMatrix(reticle.matrix);
-    
-    // --- KORRIGIERTE SKALIERUNGSLOGIK ---
-    const AR_TARGET_MAX_DIM = 0.5; // Zielgröße: Längste Kante soll 50 cm betragen
-    
-    // Lese die gespeicherte, unskalierte maximale Dimension
-    const originalMaxDim = mapModel.userData.originalMaxDim || 1; // Fallback auf 1
-    
-    // AR Skalierung = (Gewünschte AR-Größe in Metern) / (Ursprüngliche Modellgröße in Einheiten)
-    const finalARScale = AR_TARGET_MAX_DIM / originalMaxDim; 
-    
-    mapModel.scale.setScalar(finalARScale); 
-    // ------------------------------------
-
-    mapModel.visible = true; 
-    
-    // Nach Platzierung:
-    objectPlaced = true;
-    reticle.visible = false;
-    hitTestSource = null; 
-  }
+  // Setze Position vom Reticle
+  mapModel.position.setFromMatrixPosition(reticle.matrix);
+  mapModel.quaternion.setFromRotationMatrix(reticle.matrix);
+  
+  // AR-Skalierung: Modell soll 30cm groß sein (angepasst von 50cm)
+  const AR_TARGET_SIZE = 0.3; // 30 cm
+  const originalMaxDim = mapModel.userData.originalMaxDim || 1;
+  const arScale = AR_TARGET_SIZE / originalMaxDim;
+  
+  mapModel.scale.setScalar(arScale);
+  mapModel.visible = true;
+  
+  objectPlaced = true;
+  reticle.visible = false;
+  hitTestSource = null;
 }
 
 function animate() {
@@ -154,20 +168,23 @@ function animate() {
 }
 
 function render(timestamp, frame) {
-  controls.update(); // Für Desktop-Modus
+  // Desktop Controls
+  if (!renderer.xr.isPresenting) {
+    controls.update();
+  }
 
-  // Wenn bereits platziert ODER NICHT IM AR-MODUS, kein Hit-Test mehr
+  // Wenn platziert oder nicht im AR-Modus, nur rendern
   if (!renderer.xr.isPresenting || objectPlaced) {
     renderer.render(scene, camera);
     return;
   }
 
-  // --- HIT TEST LOGIK (NUR IM AR-MODUS UND WENN NOCH NICHT PLATZIERT) ---
+  // Hit-Test Logik (nur im AR und vor Platzierung)
   if (frame) {
     const referenceSpace = renderer.xr.getReferenceSpace();
     const session = renderer.xr.getSession();
 
-    if (hitTestSourceRequested === false) {
+    if (!hitTestSourceRequested) {
       session.requestReferenceSpace('viewer').then((refSpace) => {
         session.requestHitTestSource({ space: refSpace }).then((source) => {
           hitTestSource = source;
@@ -187,13 +204,13 @@ function render(timestamp, frame) {
 
       if (hitTestResults.length) {
         const hit = hitTestResults[0];
-        const pose = hit.getPose(referenceSpace); // <- Verwendung von referenceSpace
+        const pose = hit.getPose(referenceSpace);
 
         if (pose) {
-            reticle.visible = true;
-            reticle.matrix.fromArray(pose.transform.matrix);
+          reticle.visible = true;
+          reticle.matrix.fromArray(pose.transform.matrix);
         } else {
-             reticle.visible = false;
+          reticle.visible = false;
         }
       } else {
         reticle.visible = false;
