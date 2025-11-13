@@ -1,7 +1,7 @@
-import * as THREE from './three/build/three.module.js';
-import { ARButton } from './three/examples/jsm/webxr/ARButton.js';
-import { GLTFLoader } from './three/examples/jsm/loaders/GLTFLoader.js';
-import { OrbitControls } from './three/examples/jsm/controls/OrbitControls.js';
+import * as THREE from 'three'; // <- SAUBER: "three" statt voller URL
+import { ARButton } from 'three/addons/webxr/ARButton.js'; // <- SAUBER: "three/addons/..."
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'; // <- SAUBER
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'; // <- SAUBER
 
 let camera, scene, renderer, controls;
 let controller, reticle;
