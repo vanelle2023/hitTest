@@ -101,8 +101,6 @@ function init() {
     console.log('🚀 AR Session gestartet');
     desktopInfo.classList.add('hidden');
     arInfo.classList.remove('hidden');
-    controls_ui.classList.remove('hidden');
-    document.getElementById('secondary-controls').classList.remove('hidden');
     
     if (mapModel) {
       mapModel.visible = false;
@@ -118,8 +116,6 @@ function init() {
     console.log('🛑 AR Session beendet');
     desktopInfo.classList.remove('hidden');
     arInfo.classList.add('hidden');
-    controls_ui.classList.add('hidden');
-    document.getElementById('secondary-controls').classList.add('hidden');
     poiCard.classList.add('hidden');
     
     if (mapModel) {
