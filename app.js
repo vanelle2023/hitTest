@@ -323,7 +323,7 @@ import * as THREE from 'three';
       mapModel.position.setFromMatrixPosition(reticle.matrix);
       mapModel.quaternion.setFromRotationMatrix(reticle.matrix);
 
-      const AR_TARGET_SIZE = 0.3;
+      const AR_TARGET_SIZE = 0.8;
       const originalMaxDim = mapModel.userData.originalMaxDim || 1;
       const arScale = AR_TARGET_SIZE / originalMaxDim;
 
