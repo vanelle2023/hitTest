@@ -39,6 +39,7 @@ const dayNightBtn = document.getElementById('dayNightBtn');
 const nextPOIBtn = document.getElementById('nextPOIBtn');
 const prevPOIBtn = document.getElementById('prevPOIBtn');
 const viewPOIBtn = document.getElementById('viewPOIBtn');
+const closePOI = document.getElementById('closePOI');
 
 init();
 animate();
@@ -153,6 +154,7 @@ function init() {
   nextPOIBtn.addEventListener('click', goToNextPOI);
   prevPOIBtn.addEventListener('click', goToPrevPOI);
   viewPOIBtn.addEventListener('click', showCurrentPOIInfo);
+  closePOI.addEventListener('click', () => poiCard.classList.add('hidden'));
   
   desktopInfo.addEventListener('click', () => {
     desktopInfo.classList.toggle('minimized');
