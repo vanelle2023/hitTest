@@ -188,8 +188,9 @@ function loadMapModel() {
 }
 
 function createPOIMarkers() {
-  pointsOfInterest.forEach(poi => {
+  pointsOfInterest.forEach((poi, index) => {
     const markerGroup = new THREE.Group();
+    markerGroup.name = `Marker_${poi.name}`; // Namen für Debugging
 
     // VIEL GRÖßER: Marker müssen im Maßstab des normalisierten Modells sein (0-1 Bereich)
     const baseGeometry = new THREE.CylinderGeometry(30, 40, 80, 8);
@@ -199,17 +200,21 @@ function createPOIMarkers() {
       emissiveIntensity: 0.8
     });
     const base = new THREE.Mesh(baseGeometry, baseMaterial);
+    base.castShadow = true;
     markerGroup.add(base);
 
-    // Kugel - viel größer
+    // Kugel - viel größer und SEHR leuchtend
     const sphereGeometry = new THREE.SphereGeometry(50, 16, 16);
     const sphereMaterial = new THREE.MeshStandardMaterial({
       color: 0xffff00,
       emissive: 0xffff00,
-      emissiveIntensity: 2
+      emissiveIntensity: 3, // Noch heller!
+      metalness: 0.3,
+      roughness: 0.4
     });
     const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
     sphere.position.y = 80;
+    sphere.castShadow = true;
     markerGroup.add(sphere);
 
     // Ring - größer
@@ -227,11 +232,13 @@ function createPOIMarkers() {
 
     markerGroup.userData.poi = poi;
     markerGroup.visible = true; // Default sichtbar für Desktop
+    markerGroup.renderOrder = 999; // Immer im Vordergrund rendern
 
     poiMarkers.push(markerGroup);
+    console.log(`📍 Marker ${index + 1}/8 erstellt: ${poi.name}`);
   });
   
-  console.log(`📍 ${poiMarkers.length} Marker erstellt`);
+  console.log(`✅ ${poiMarkers.length} Marker erstellt`);
 }
 
 function positionPOIMarkers() {
