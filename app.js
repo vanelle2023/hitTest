@@ -10,11 +10,12 @@ let hitTestSource = null;
 let hitTestSourceRequested = false;
 let objectPlaced = false;
 let mapModel = null;
-let poiMarkers = [];
+let activeMarker = null; // NUR EIN Marker!
 let character = null;
 let dayLight, nightLight, moonLight;
 let raycaster, mouse;
 let isDayMode = true;
+let currentPOIIndex = 0; // Aktuelle Tour-Station
 let visitedPOIs = new Set();
 
 // POIs für Bremerhaven
@@ -35,7 +36,9 @@ const controls_ui = document.getElementById('controls');
 const poiCard = document.getElementById('poiCard');
 const desktopInfo = document.getElementById('desktopInfo');
 const dayNightBtn = document.getElementById('dayNightBtn');
-const closePOI = document.getElementById('closePOI');
+const nextPOIBtn = document.getElementById('nextPOIBtn');
+const prevPOIBtn = document.getElementById('prevPOIBtn');
+const viewPOIBtn = document.getElementById('viewPOIBtn');
 
 init();
 animate();
@@ -98,11 +101,11 @@ function init() {
     desktopInfo.classList.add('hidden');
     arInfo.classList.remove('hidden');
     controls_ui.classList.remove('hidden');
+    document.getElementById('secondary-controls').classList.remove('hidden');
     
     if (mapModel) {
       mapModel.visible = false;
-      // Marker auch verstecken beim AR-Start
-      poiMarkers.forEach(m => m.visible = false);
+      if (activeMarker) activeMarker.visible = false;
       if (character) character.visible = false;
     }
     objectPlaced = false;
@@ -115,12 +118,12 @@ function init() {
     desktopInfo.classList.remove('hidden');
     arInfo.classList.add('hidden');
     controls_ui.classList.add('hidden');
+    document.getElementById('secondary-controls').classList.add('hidden');
     poiCard.classList.add('hidden');
     
     if (mapModel) {
       mapModel.visible = true;
-      // Im Desktop-Modus Marker sichtbar machen
-      poiMarkers.forEach(m => m.visible = true);
+      if (activeMarker) activeMarker.visible = true;
       if (character) character.visible = true;
       setupDesktopView();
     }
@@ -145,10 +148,11 @@ function init() {
   // Event Listeners
   window.addEventListener('resize', onWindowResize, false);
   renderer.domElement.addEventListener('click', onMapClick, false);
-  renderer.domElement.addEventListener('touchend', onMapClick, false);
   
   dayNightBtn.addEventListener('click', toggleDayNight);
-  closePOI.addEventListener('click', () => poiCard.classList.add('hidden'));
+  nextPOIBtn.addEventListener('click', goToNextPOI);
+  prevPOIBtn.addEventListener('click', goToPrevPOI);
+  viewPOIBtn.addEventListener('click', showCurrentPOIInfo);
   
   desktopInfo.addEventListener('click', () => {
     desktopInfo.classList.toggle('minimized');
@@ -168,18 +172,22 @@ function loadMapModel() {
 
     scene.add(mapModel);
     
-    // Marker und Character ERST NACH dem Modell erstellen
-    createPOIMarkers();
+    // Finde POI-Positionen
+    findPOIPositions();
+    
+    // Erstelle EIN Marker und Character
+    createSingleMarker();
     createCharacter();
-    positionPOIMarkers();
+    
+    // Positioniere Marker zur ersten Sehenswürdigkeit
+    updateMarkerPosition();
     
     setupDesktopView();
     mapModel.visible = true;
 
     console.log('✅ Modell geladen:', {
       originalMaxDim: mapModel.userData.originalMaxDim,
-      originalCenter: mapModel.userData.originalCenter,
-      markerCount: poiMarkers.length
+      pois: pointsOfInterest.length
     });
 
   }, undefined, (error) => {
@@ -187,73 +195,13 @@ function loadMapModel() {
   });
 }
 
-function createPOIMarkers() {
-  pointsOfInterest.forEach((poi, index) => {
-    const markerGroup = new THREE.Group();
-    markerGroup.name = `Marker_${poi.name}`; // Namen für Debugging
-
-    // VIEL GRÖßER: Marker müssen im Maßstab des normalisierten Modells sein (0-1 Bereich)
-    const baseGeometry = new THREE.CylinderGeometry(30, 40, 80, 8);
-    const baseMaterial = new THREE.MeshStandardMaterial({
-      color: 0xff6b35,
-      emissive: 0xff6b35,
-      emissiveIntensity: 0.8
-    });
-    const base = new THREE.Mesh(baseGeometry, baseMaterial);
-    base.castShadow = true;
-    markerGroup.add(base);
-
-    // Kugel - viel größer und SEHR leuchtend
-    const sphereGeometry = new THREE.SphereGeometry(50, 16, 16);
-    const sphereMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffff00,
-      emissive: 0xffff00,
-      emissiveIntensity: 3, // Noch heller!
-      metalness: 0.3,
-      roughness: 0.4
-    });
-    const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-    sphere.position.y = 80;
-    sphere.castShadow = true;
-    markerGroup.add(sphere);
-
-    // Ring - größer
-    const ringGeometry = new THREE.TorusGeometry(60, 8, 8, 16);
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.8
-    });
-    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-    ring.position.y = 80;
-    ring.rotation.x = Math.PI / 2;
-    markerGroup.add(ring);
-    markerGroup.userData.ring = ring;
-
-    markerGroup.userData.poi = poi;
-    markerGroup.visible = true; // Default sichtbar für Desktop
-    markerGroup.renderOrder = 999; // Immer im Vordergrund rendern
-
-    poiMarkers.push(markerGroup);
-    console.log(`📍 Marker ${index + 1}/8 erstellt: ${poi.name}`);
-  });
-  
-  console.log(`✅ ${poiMarkers.length} Marker erstellt`);
-}
-
-function positionPOIMarkers() {
-  if (!mapModel) {
-    console.warn('⚠️ Modell noch nicht geladen!');
-    return;
-  }
-
-  // Berechne den Normalisierungsfaktor
+function findPOIPositions() {
   const originalMaxDim = mapModel.userData.originalMaxDim || 1;
   const normalizeScale = 1.0 / originalMaxDim;
+  const modelCenter = mapModel.userData.originalCenter;
 
   console.log('🔍 Suche POI-Objekte im Modell...');
 
-  // Durchsuche das geladene Modell nach POI-Objekten
   mapModel.traverse((child) => {
     pointsOfInterest.forEach((poi) => {
       const childName = child.name.replace(/_/g, ' ').toLowerCase();
@@ -262,9 +210,7 @@ function positionPOIMarkers() {
       if (childName === poiName || child.name === poi.blenderName) {
         const bbox = new THREE.Box3().setFromObject(child);
         const center = bbox.getCenter(new THREE.Vector3());
-        const modelCenter = mapModel.userData.originalCenter;
         
-        // Normalisierte Position speichern
         poi.position = {
           x: (center.x - modelCenter.x) * normalizeScale,
           y: (center.y - modelCenter.y) * normalizeScale,
@@ -276,59 +222,273 @@ function positionPOIMarkers() {
     });
   });
 
-  // Setze Marker-Positionen
-  poiMarkers.forEach((marker, index) => {
-    const poi = pointsOfInterest[index];
-    if (poi.position) {
-      marker.position.set(
-        poi.position.x, 
-        poi.position.y + 0.01,
-        poi.position.z
-      );
-      mapModel.add(marker); // Child vom Modell
-      console.log(`📌 Marker platziert: ${poi.name}`);
-    } else {
-      console.warn(`⚠️ Position fehlt für: ${poi.blenderName}`);
-      marker.position.set(0, 0.01, 0);
-      mapModel.add(marker);
+  // Fallback für POIs ohne Position
+  pointsOfInterest.forEach((poi, index) => {
+    if (!poi.position) {
+      const angle = (index / pointsOfInterest.length) * Math.PI * 2;
+      const radius = 0.3;
+      poi.position = {
+        x: Math.cos(angle) * radius,
+        y: 0,
+        z: Math.sin(angle) * radius
+      };
+      console.warn(`⚠️ Fallback Position für: ${poi.name}`);
     }
   });
+}
+
+function createSingleMarker() {
+  const markerGroup = new THREE.Group();
+  markerGroup.name = 'ActiveMarker';
+
+  // Basis - RIESIG für bessere Sichtbarkeit
+  const baseGeometry = new THREE.CylinderGeometry(30, 40, 80, 8);
+  const baseMaterial = new THREE.MeshStandardMaterial({
+    color: 0xff6b35,
+    emissive: 0xff6b35,
+    emissiveIntensity: 0.8
+  });
+  const base = new THREE.Mesh(baseGeometry, baseMaterial);
+  markerGroup.add(base);
+
+  // Kugel - SEHR leuchtend
+  const sphereGeometry = new THREE.SphereGeometry(50, 16, 16);
+  const sphereMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffff00,
+    emissive: 0xffff00,
+    emissiveIntensity: 3,
+    metalness: 0.3,
+    roughness: 0.4
+  });
+  const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+  sphere.position.y = 80;
+  markerGroup.add(sphere);
+
+  // Pulsierender Ring
+  const ringGeometry = new THREE.TorusGeometry(60, 8, 8, 16);
+  const ringMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.8
+  });
+  const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+  ring.position.y = 80;
+  ring.rotation.x = Math.PI / 2;
+  markerGroup.add(ring);
+  markerGroup.userData.ring = ring;
+
+  markerGroup.visible = true;
+  mapModel.add(markerGroup);
+  activeMarker = markerGroup;
+  
+  console.log('📍 Einzelner Marker erstellt');
 }
 
 function createCharacter() {
   const characterGroup = new THREE.Group();
 
   // Körper
-  const bodyGeometry = new THREE.CylinderGeometry(0.012, 0.012, 0.04, 8);
+  const bodyGeometry = new THREE.CylinderGeometry(20, 20, 60, 8);
   const bodyMaterial = new THREE.MeshStandardMaterial({ 
     color: 0x4a90e2,
     emissive: 0x4a90e2,
     emissiveIntensity: 0.3
   });
   const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-  body.position.y = 0.04;
+  body.position.y = 60;
   characterGroup.add(body);
 
   // Kopf
-  const headGeometry = new THREE.SphereGeometry(0.015, 16, 16);
+  const headGeometry = new THREE.SphereGeometry(25, 16, 16);
   const headMaterial = new THREE.MeshStandardMaterial({ 
     color: 0xffdbac,
     emissive: 0xffdbac,
     emissiveIntensity: 0.2
   });
   const head = new THREE.Mesh(headGeometry, headMaterial);
-  head.position.y = 0.07;
+  head.position.y = 110;
   characterGroup.add(head);
 
-  characterGroup.position.set(0, 0.002, 0);
-  characterGroup.visible = true; // Default sichtbar für Desktop
-
-  if (mapModel) {
-    mapModel.add(characterGroup);
-  }
+  characterGroup.position.set(0, 5, 0);
+  characterGroup.visible = true;
+  mapModel.add(characterGroup);
   
   character = characterGroup;
   console.log('🧍 Character erstellt');
+}
+
+function updateMarkerPosition() {
+  if (!activeMarker) return;
+  
+  const currentPOI = pointsOfInterest[currentPOIIndex];
+  if (!currentPOI.position) return;
+
+  const targetPos = new THREE.Vector3(
+    currentPOI.position.x,
+    currentPOI.position.y + 15,
+    currentPOI.position.z
+  );
+
+  // Animiere Marker zur neuen Position
+  animateMarkerTo(targetPos);
+  
+  // Aktualisiere UI
+  updateTourUI();
+  
+  console.log(`📍 Marker bewegt sich zu: ${currentPOI.name} (${currentPOIIndex + 1}/${pointsOfInterest.length})`);
+}
+
+function animateMarkerTo(targetPos) {
+  if (!activeMarker) return;
+
+  const startPos = activeMarker.position.clone();
+  const duration = 1000;
+  const startTime = Date.now();
+
+  function animate() {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+
+    const eased = progress < 0.5
+      ? 2 * progress * progress
+      : -1 + (4 - 2 * progress) * progress;
+
+    activeMarker.position.lerpVectors(startPos, targetPos, eased);
+    
+    // Hüpf-Effekt
+    activeMarker.position.y = targetPos.y + Math.sin(progress * Math.PI * 2) * 30;
+
+    // Pulsiere während der Bewegung
+    const sphere = activeMarker.children[1];
+    if (sphere && sphere.material) {
+      sphere.material.emissiveIntensity = 3 + Math.sin(progress * Math.PI * 4) * 1;
+    }
+
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      activeMarker.position.copy(targetPos);
+    }
+  }
+
+  animate();
+
+  // Bewege auch Character
+  if (character) {
+    animateCharacterTo(targetPos);
+  }
+}
+
+function animateCharacterTo(targetPos) {
+  if (!character) return;
+
+  const startPos = character.position.clone();
+  const duration = 1500;
+  const startTime = Date.now();
+
+  function animate() {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+
+    const eased = progress < 0.5
+      ? 2 * progress * progress
+      : -1 + (4 - 2 * progress) * progress;
+
+    character.position.lerpVectors(startPos, targetPos, eased);
+    character.position.y = 5 + Math.sin(progress * Math.PI * 3) * 30;
+
+    const body = character.children[0];
+    if (body && body.material) {
+      body.material.emissiveIntensity = 0.3 + Math.sin(progress * Math.PI * 6) * 0.3;
+    }
+
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      character.position.set(targetPos.x, 5, targetPos.z);
+    }
+  }
+
+  animate();
+}
+
+function goToNextPOI() {
+  // Markiere aktuelles POI als besucht
+  visitedPOIs.add(pointsOfInterest[currentPOIIndex].id);
+  
+  currentPOIIndex = (currentPOIIndex + 1) % pointsOfInterest.length;
+  updateMarkerPosition();
+  poiCard.classList.add('hidden');
+  
+  console.log('➡️ Nächstes POI:', pointsOfInterest[currentPOIIndex].name);
+}
+
+function goToPrevPOI() {
+  currentPOIIndex = (currentPOIIndex - 1 + pointsOfInterest.length) % pointsOfInterest.length;
+  updateMarkerPosition();
+  poiCard.classList.add('hidden');
+  
+  console.log('⬅️ Vorheriges POI:', pointsOfInterest[currentPOIIndex].name);
+}
+
+function showCurrentPOIInfo() {
+  const currentPOI = pointsOfInterest[currentPOIIndex];
+  showPOIInfo(currentPOI);
+  visitedPOIs.add(currentPOI.id);
+  updateTourUI();
+}
+
+function updateTourUI() {
+  const currentPOI = pointsOfInterest[currentPOIIndex];
+  
+  // Update Counter
+  document.getElementById('poiCounter').textContent = `${currentPOIIndex + 1}/${pointsOfInterest.length}`;
+  document.getElementById('visitedCounter').textContent = `${visitedPOIs.size}/${pointsOfInterest.length}`;
+  
+  // Update Button Text
+  document.getElementById('viewPOIText').textContent = currentPOI.name;
+  
+  // Prüfe ob alle besucht
+  if (visitedPOIs.size === pointsOfInterest.length) {
+    showCompletionMessage();
+  }
+}
+
+function showPOIInfo(poi) {
+  document.getElementById('poiIcon').textContent = poi.icon;
+  document.getElementById('poiTitle').textContent = poi.name;
+  document.getElementById('poiDesc').textContent = poi.description;
+  
+  const badge = document.getElementById('poiBadge');
+  if (visitedPOIs.has(poi.id)) {
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+  
+  poiCard.classList.remove('hidden');
+}
+
+function showCompletionMessage() {
+  arInfo.innerHTML = `
+    <h3>
+      🎉 Gratulation!
+    </h3>
+    <p>Du hast alle ${pointsOfInterest.length} Sehenswürdigkeiten von Bremerhaven besucht!</p>
+  `;
+  setTimeout(() => {
+    arInfo.innerHTML = `
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        Bremerhaven entdecken
+      </h3>
+      <p>Navigiere mit ← → durch die Sehenswürdigkeiten!</p>
+    `;
+  }, 5000);
 }
 
 function setupDesktopView() {
@@ -349,7 +509,7 @@ function setupDesktopView() {
   controls.target.set(0, 0, 0);
   controls.update();
   
-  console.log('🖥️ Desktop View eingerichtet, Scale:', desktopScale);
+  console.log('🖥️ Desktop View eingerichtet');
 }
 
 function onWindowResize() {
@@ -373,15 +533,8 @@ function onSelect() {
   mapModel.scale.setScalar(arScale);
   mapModel.visible = true;
 
-  // WICHTIG: Marker UND Character sichtbar machen
-  console.log('👁️ Zeige Marker und Character');
-  poiMarkers.forEach(marker => {
-    marker.visible = true;
-  });
-
-  if (character) {
-    character.visible = true;
-  }
+  if (activeMarker) activeMarker.visible = true;
+  if (character) character.visible = true;
 
   objectPlaced = true;
   reticle.visible = false;
@@ -389,141 +542,21 @@ function onSelect() {
 }
 
 function onMapClick(event) {
-  // Nur in AR wenn Objekt platziert ist
-  if (!objectPlaced || !renderer.xr.isPresenting) {
-    // Im Desktop-Modus auch klickbar
-    if (!renderer.xr.isPresenting && mapModel && mapModel.visible) {
-      handleDesktopClick(event);
-    }
-    return;
-  }
+  // Klick auf Marker im Desktop zeigt Info
+  if (!renderer.xr.isPresenting && mapModel && mapModel.visible) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-  handleARClick(event);
-}
-
-function handleARClick(event) {
-  const rect = renderer.domElement.getBoundingClientRect();
-  let x, y;
-
-  if (event.touches && event.touches.length > 0) {
-    x = event.touches[0].clientX;
-    y = event.touches[0].clientY;
-  } else {
-    x = event.clientX;
-    y = event.clientY;
-  }
-
-  mouse.x = ((x - rect.left) / rect.width) * 2 - 1;
-  mouse.y = -((y - rect.top) / rect.height) * 2 + 1;
-
-  raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(poiMarkers, true);
-
-  if (intersects.length > 0) {
-    let marker = intersects[0].object;
+    raycaster.setFromCamera(mouse, camera);
     
-    while (marker && !marker.userData.poi) {
-      marker = marker.parent;
-    }
-    
-    if (marker && marker.userData.poi) {
-      const poi = marker.userData.poi;
-      console.log('🎯 POI geklickt:', poi.name);
-      showPOIInfo(poi);
-      visitedPOIs.add(poi.id);
-      updatePOICounter();
-
-      if (character) {
-        const worldPos = new THREE.Vector3();
-        marker.getWorldPosition(worldPos);
-        animateCharacterTo(worldPos);
+    if (activeMarker) {
+      const intersects = raycaster.intersectObjects(activeMarker.children, true);
+      if (intersects.length > 0) {
+        showCurrentPOIInfo();
       }
     }
   }
-}
-
-function handleDesktopClick(event) {
-  const rect = renderer.domElement.getBoundingClientRect();
-  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-  raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(poiMarkers, true);
-
-  if (intersects.length > 0) {
-    let marker = intersects[0].object;
-    
-    while (marker && !marker.userData.poi) {
-      marker = marker.parent;
-    }
-    
-    if (marker && marker.userData.poi) {
-      const poi = marker.userData.poi;
-      console.log('🖱️ Desktop: POI geklickt:', poi.name);
-      showPOIInfo(poi);
-      visitedPOIs.add(poi.id);
-      updatePOICounter();
-
-      if (character) {
-        const worldPos = new THREE.Vector3();
-        marker.getWorldPosition(worldPos);
-        animateCharacterTo(worldPos);
-      }
-    }
-  }
-}
-
-function showPOIInfo(poi) {
-  document.getElementById('poiIcon').textContent = poi.icon;
-  document.getElementById('poiTitle').textContent = poi.name;
-  document.getElementById('poiDesc').textContent = poi.description;
-  
-  const badge = document.getElementById('poiBadge');
-  if (visitedPOIs.has(poi.id)) {
-    badge.classList.remove('hidden');
-  } else {
-    badge.classList.add('hidden');
-  }
-  
-  poiCard.classList.remove('hidden');
-}
-
-function updatePOICounter() {
-  document.getElementById('poiCounter').textContent = `${visitedPOIs.size}/8`;
-}
-
-function animateCharacterTo(targetWorldPos) {
-  if (!character) return;
-
-  const targetLocalPos = mapModel.worldToLocal(targetWorldPos.clone());
-  const startPos = character.position.clone();
-  const duration = 1500;
-  const startTime = Date.now();
-
-  function animate() {
-    const elapsed = Date.now() - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-
-    const eased = progress < 0.5
-      ? 2 * progress * progress
-      : -1 + (4 - 2 * progress) * progress;
-
-    character.position.lerpVectors(startPos, targetLocalPos, eased);
-    character.position.y = 0.002 + Math.sin(progress * Math.PI * 3) * 0.02;
-
-    const body = character.children[0];
-    if (body && body.material) {
-      body.material.emissiveIntensity = 0.3 + Math.sin(progress * Math.PI * 6) * 0.3;
-    }
-
-    if (progress < 1) {
-      requestAnimationFrame(animate);
-    } else {
-      character.position.y = 0.002;
-    }
-  }
-
-  animate();
 }
 
 function toggleDayNight() {
@@ -550,13 +583,11 @@ function render(timestamp, frame) {
     controls.update();
   }
 
-  // Animiere POI Marker
-  poiMarkers.forEach(marker => {
-    if (marker.userData.ring && marker.visible) {
-      marker.userData.ring.rotation.z += 0.02;
-      marker.userData.ring.scale.setScalar(1 + Math.sin(timestamp * 0.003) * 0.1);
-    }
-  });
+  // Animiere Marker-Ring
+  if (activeMarker && activeMarker.userData.ring && activeMarker.visible) {
+    activeMarker.userData.ring.rotation.z += 0.02;
+    activeMarker.userData.ring.scale.setScalar(1 + Math.sin(timestamp * 0.003) * 0.1);
+  }
 
   if (!renderer.xr.isPresenting || objectPlaced) {
     renderer.render(scene, camera);

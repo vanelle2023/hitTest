@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <title>AR Hit Test – einmaliges Platzieren</title>
+  <title>AR Bremerhaven Tour - Geführte Entdeckungsreise</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <script type="importmap">
     {
@@ -61,11 +61,14 @@
       display: flex;
       gap: 12px;
       margin: 0 16px;
+      justify-content: center;
+      flex-wrap: wrap;
     }
     
     .btn {
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: 8px;
       padding: 12px 20px;
       border: none;
@@ -86,9 +89,37 @@
       transform: scale(0.95);
     }
     
+    .btn-nav {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      min-width: 48px;
+      padding: 12px 16px;
+    }
+    
+    .btn-view {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+      flex: 1;
+      max-width: 250px;
+      font-size: 13px;
+    }
+    
+    .btn-nav:active, .btn-view:active {
+      transform: scale(0.95);
+    }
+    
     .btn-success {
       background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
       color: white;
+    }
+    
+    .btn-info {
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      color: white;
+    }
+    
+    #secondary-controls {
+      justify-content: center;
     }
     
     .poi-card {
@@ -295,24 +326,55 @@
         </svg>
         Bremerhaven entdecken
       </h3>
-      <p>Tippe auf die leuchtenden Marker um Orte zu erkunden!</p>
+      <p>Navigiere mit ← → durch die Sehenswürdigkeiten!</p>
     </div>
     
-    <!-- Controls -->
+    <!-- Navigation Controls -->
     <div id="controls" class="controls hidden">
-      <button id="dayNightBtn" class="btn btn-primary">
+      <!-- Navigation Buttons -->
+      <button id="prevPOIBtn" class="btn btn-nav" title="Vorherige Sehenswürdigkeit">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      
+      <button id="viewPOIBtn" class="btn btn-view" title="Aktuelle Sehenswürdigkeit anzeigen">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+        <span id="viewPOIText">Klimahaus</span>
+      </button>
+      
+      <button id="nextPOIBtn" class="btn btn-nav" title="Nächste Sehenswürdigkeit">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+    </div>
+    
+    <!-- Secondary Controls -->
+    <div id="secondary-controls" class="controls hidden" style="margin-top: 8px;">
+      <button id="dayNightBtn" class="btn btn-primary" title="Tag/Nacht Modus wechseln">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
         </svg>
         <span id="dayNightText">Nacht</span>
       </button>
       
-      <button class="btn btn-success">
+      <button class="btn btn-success" title="Aktuelle Station">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
           <circle cx="12" cy="10" r="3"></circle>
         </svg>
-        <span id="poiCounter">0/8</span>
+        <span id="poiCounter">1/8</span>
+      </button>
+      
+      <button class="btn btn-info" title="Besuchte Sehenswürdigkeiten">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span id="visitedCounter">0/8</span>
       </button>
     </div>
   </div>
@@ -325,7 +387,7 @@
         <h3 class="poi-title" id="poiTitle">Ort</h3>
         <p class="poi-desc" id="poiDesc">Beschreibung</p>
       </div>
-      <button class="close-btn" id="closePOI">×</button>
+      <button class="close-btn" id="closePOI" title="Schließen">×</button>
     </div>
     <div id="poiBadge" class="poi-badge hidden">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
@@ -342,30 +404,37 @@
         <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
       </svg>
     </div>
-    <h2>Bremerhaven AR Explorer</h2>
-    <p>Erkunde die Havenwelten in Augmented Reality! Platziere die Karte auf einer Fläche und entdecke interaktive Orte.</p>
+    <h2>Bremerhaven AR Tour</h2>
+    <p>Erkunde die Havenwelten in einer geführten Augmented Reality Tour! Ein leuchtender Marker führt dich durch alle Sehenswürdigkeiten.</p>
     <div class="feature-list">
       <div class="feature-item">
         <span class="feature-bullet">•</span>
-        <span>Leuchtende Marker zeigen Sehenswürdigkeiten</span>
+        <span>Ein leuchtender Marker zeigt die aktuelle Sehenswürdigkeit</span>
       </div>
       <div class="feature-item">
         <span class="feature-bullet">•</span>
-        <span>Tippe auf Marker für Informationen</span>
+        <span>Nutze ← → Buttons um zur nächsten Station zu navigieren</span>
       </div>
       <div class="feature-item">
         <span class="feature-bullet">•</span>
-        <span>Wechsle zwischen Tag & Nacht Modus</span>
+        <span>Tippe auf "👁️ Ort" Button für Details</span>
       </div>
       <div class="feature-item">
         <span class="feature-bullet">•</span>
-        <span>Sammle alle 8 Orte!</span>
+        <span>Sammle alle 8 Sehenswürdigkeiten!</span>
       </div>
     </div>
     <p class="minimize-hint">💡 Klicke hier um zu minimieren</p>
   </div>
 
-  <!-- Dein WebXR-Canvas wird hier automatisch eingefügt -->
+  <!-- Close POI Card Handler -->
+  <script>
+    document.getElementById('closePOI').addEventListener('click', () => {
+      document.getElementById('poiCard').classList.add('hidden');
+    });
+  </script>
+
+  <!-- Dein WebXR-Canvas und JavaScript wird hier automatisch eingefügt -->
   <script type="module" src="./app.js"></script>
 </body>
 </html>
