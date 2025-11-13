@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>three.js — WebXR AR Hit Test (Starter)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    body { margin: 0; overflow: hidden; font-family: sans-serif; }
+    #info { position: absolute; top: 10px; left: 10px; z-index: 1; color: #fff; }
+  </style>
+</head>
+<body>
+  <div id="info">three.js — AR Hit Test starter</div>
+
+  <script type="module">
+    import * as THREE from 'https://threejs.org/build/three.module.js';
+    import { ARButton } from 'https://threejs.org/examples/jsm/webxr/ARButton.js';
+
+    let camera, scene, renderer;
+    let controller;
+    let reticle;
+    let hitTestSource = null;
+    let hitTestSourceRequested = false;
+
+    init();
+    animate();
+
+    function init() {
+      const container = document.createElement( 'div' );
+      document.body.appendChild( container );
+
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 20 );
+
+      // Licht (optional)
+      const light = new THREE.HemisphereLight( 0xffffff, 0xbbbbff, 1 );
+      light.position.set( 0.5, 1, 0.25 );
+      scene.add( light );
+
+      // Renderer
+      renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
+      renderer.setPixelRatio( window.devicePixelRatio );
+      renderer.setSize( window.innerWidth, window.innerHeight );
+      renderer.xr.enabled = true;
+      container.appendChild( renderer.domElement );
+
+      // AR Button
+      document.body.appendChild( ARButton.createButton( renderer, { requiredFeatures: [ 'hit-test' ] } ) );
+
+      // Controller (für select events)
+      controller = renderer.xr.getController( 0 );
+      controller.addEventListener( 'select', onSelect );
+      scene.add( controller );
+
+      // Reticle (zeigt wo ein Treffer gefunden wurde)
+      const ringGeometry = new THREE.RingGeometry( 0.07, 0.09, 32 ).rotateX( - Math.PI / 2 );
+      const ringMaterial = new THREE.MeshBasicMaterial( { color: 0x0fff00 } );
+      reticle = new THREE.Mesh( ringGeometry, ringMaterial );
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
+      scene.add( reticle );
+
+      window.addEventListener( 'resize', onWindowResize, false );
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize( window.innerWidth, window.innerHeight );
+    }
+
+    function onSelect() {
+      if ( reticle.visible ) {
+        // Beispiel: einfache Box an Reticle-Position platzieren
+        const geometry = new THREE.BoxGeometry( 0.1, 0.1, 0.1 );
+        const material = new THREE.MeshPhongMaterial( { color: 0xffffff * Math.random() } );
+        const mesh = new THREE.Mesh( geometry, material );
+
+        // Reticle liefert eine transform-matrix (Float32Array) -> kopieren
+        mesh.position.setFromMatrixPosition( reticle.matrix );
+        mesh.quaternion.setFromRotationMatrix( reticle.matrix );
+        mesh.scale.set( 1, 1, 1 );
+
+        scene.add( mesh );
+      }
+    }
+
+    // Animations-/Renderloop
+    function animate() {
+      renderer.setAnimationLoop( render );
+    }
+
+    function render( timestamp, frame ) {
+      if ( frame ) {
+        const referenceSpace = renderer.xr.getReferenceSpace();
+        const session = renderer.xr.getSession();
+
+        if ( hitTestSourceRequested === false ) {
+          // Anfrage des HitTest-Source (einmalig pro Session)
+          session.requestReferenceSpace( 'viewer' ).then( ( refSpace ) => {
+            session.requestHitTestSource( { space: refSpace } ).then( ( source ) => {
+              hitTestSource = source;
+            } );
+          } );
+
+          session.addEventListener( 'end', () => {
+            hitTestSourceRequested = false;
+            hitTestSource = null;
+          } );
+
+          hitTestSourceRequested = true;
+        }
+
+        if ( hitTestSource ) {
+          const hitTestResults = frame.getHitTestResults( hitTestSource );
+
+          if ( hitTestResults.length ) {
+            const hit = hitTestResults[ 0 ];
+            const pose = hit.getPose( referenceSpace );
+
+            // Pose -> Reticle transform matrix
+            reticle.visible = true;
+            reticle.matrix.fromArray( pose.transform.matrix );
+          } else {
+            reticle.visible = false;
+          }
+        }
+      }
+
+      renderer.render( scene, camera );
+    }
+  </script>
+</body>
+</html>
