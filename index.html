@@ -13,21 +13,322 @@
     }
   </script>
   <style>
-    body { margin: 0; overflow: hidden; font-family: sans-serif; }
-    #info {
+    body { 
+      margin: 0; 
+      overflow: hidden; 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    #ui-overlay {
       position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 1;
-      color: #fff;
-      background: rgba(0,0,0,0.4);
-      padding: 4px 8px;
-      border-radius: 4px;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      pointer-events: none;
+    }
+    
+    #ui-overlay > * {
+      pointer-events: auto;
+    }
+    
+    .info-banner {
+      margin: 16px;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(10px);
+      color: white;
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    
+    .info-banner h3 {
+      margin: 0 0 8px 0;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .info-banner p {
+      margin: 0;
+      font-size: 14px;
+      color: #ddd;
+    }
+    
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin: 0 16px;
+    }
+    
+    .btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    .btn-primary:active {
+      transform: scale(0.95);
+    }
+    
+    .btn-success {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      color: white;
+    }
+    
+    .poi-card {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      animation: slideUp 0.3s ease-out;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    
+    @keyframes slideUp {
+      from {
+        transform: translateY(100px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    
+    .poi-card-header {
+      display: flex;
+      align-items: start;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+    
+    .poi-icon {
+      font-size: 48px;
+      line-height: 1;
+    }
+    
+    .poi-info {
+      flex: 1;
+    }
+    
+    .poi-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #1a1a1a;
+      margin: 0 0 4px 0;
+    }
+    
+    .poi-desc {
+      font-size: 14px;
+      color: #666;
+      margin: 0;
+    }
+    
+    .poi-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #d4edda;
+      color: #155724;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 12px;
+    }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #999;
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      transition: all 0.2s;
+    }
+    
+    .close-btn:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+    
+    .desktop-info {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 500px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    
+    .desktop-info h2 {
+      color: #1a1a1a;
+      margin: 16px 0;
+      font-size: 28px;
+    }
+    
+    .desktop-info p {
+      color: #666;
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+    
+    .feature-list {
+      text-align: left;
+      margin: 24px 0;
+    }
+    
+    .feature-item {
+      display: flex;
+      align-items: start;
+      gap: 12px;
+      margin: 12px 0;
+      color: #333;
+      font-size: 14px;
+    }
+    
+    .feature-bullet {
+      color: #667eea;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    
+    .icon-nav {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+    }
+    
+    .icon-nav svg {
+      width: 32px;
+      height: 32px;
+      stroke: white;
+      fill: none;
+      stroke-width: 2;
+    }
+    
+    .hidden {
+      display: none !important;
     }
   </style>
 </head>
 <body>
-  <div id="info">three.js — AR Hit Test (einmaliges Platzieren)</div>
+<!-- UI Overlay -->
+  <div id="ui-overlay">
+    <!-- AR Info Banner -->
+    <div id="ar-info" class="info-banner hidden">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        Bremerhaven entdecken
+      </h3>
+      <p>Tippe auf die leuchtenden Marker um Orte zu erkunden!</p>
+    </div>
+    
+    <!-- Controls -->
+    <div id="controls" class="controls hidden">
+      <button id="dayNightBtn" class="btn btn-primary">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+        <span id="dayNightText">Nacht</span>
+      </button>
+      
+      <button class="btn btn-success">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+          <circle cx="12" cy="10" r="3"></circle>
+        </svg>
+        <span id="poiCounter">0/8</span>
+      </button>
+    </div>
+  </div>
+  
+  <!-- POI Info Card -->
+  <div id="poiCard" class="poi-card hidden">
+    <div class="poi-card-header">
+      <div class="poi-icon" id="poiIcon">🌍</div>
+      <div class="poi-info">
+        <h3 class="poi-title" id="poiTitle">Ort</h3>
+        <p class="poi-desc" id="poiDesc">Beschreibung</p>
+      </div>
+      <button class="close-btn" id="closePOI">×</button>
+    </div>
+    <div id="poiBadge" class="poi-badge hidden">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      Besucht
+    </div>
+  </div>
+  
+  <!-- Desktop Instructions -->
+  <div id="desktopInfo" class="desktop-info">
+    <div class="icon-nav">
+      <svg viewBox="0 0 24 24">
+        <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+      </svg>
+    </div>
+    <h2>Bremerhaven AR Explorer</h2>
+    <p>Erkunde die Havenwelten in Augmented Reality! Platziere die Karte auf einer Fläche und entdecke interaktive Orte.</p>
+    <div class="feature-list">
+      <div class="feature-item">
+        <span class="feature-bullet">•</span>
+        <span>Leuchtende Marker zeigen Sehenswürdigkeiten</span>
+      </div>
+      <div class="feature-item">
+        <span class="feature-bullet">•</span>
+        <span>Tippe auf Marker für Informationen</span>
+      </div>
+      <div class="feature-item">
+        <span class="feature-bullet">•</span>
+        <span>Wechsle zwischen Tag & Nacht Modus</span>
+      </div>
+      <div class="feature-item">
+        <span class="feature-bullet">•</span>
+        <span>Sammle alle 8 Orte!</span>
+      </div>
+    </div>
+  </div>
 
   <!-- Dein WebXR-Canvas wird hier automatisch eingefügt -->
   <script type="module" src="./app.js"></script>
