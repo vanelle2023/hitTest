@@ -26,7 +26,7 @@ const pointsOfInterest = [
   { id: 5, name: 'Haus Z', blenderName: 'Haus_Z', description: 'Modernes Gebäude', icon: '🏢' },
   { id: 6, name: 'Haus K', blenderName: 'Haus_K', description: 'Architektur-Highlight', icon: '🏗️' },
   { id: 7, name: 'Hanse Carré', blenderName: 'Hanse_Carré', description: 'Einkaufszentrum', icon: '🛍️' },
-  { id: 8, name: 'Weser Strandbad', blenderName: 'Weser_Strandbad', description: 'Strandbad an der Weser', icon: '🏖️' }
+  { id: 8, name: 'Weser Strandbad', blenderName: 'Weser-Strandbad', description: 'Strandbad an der Weser', icon: '🏖️' }
 ];
 
 // UI Elements
