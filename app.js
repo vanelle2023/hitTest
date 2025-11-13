@@ -47,7 +47,7 @@ function init() {
   // 🔹 Modell laden
   const loader = new GLTFLoader();
   loader.load(
-    './mapBremerhaven.glb', // Muss im selben Ordner liegen
+    './mapBremerhaven2.glb', // Muss im selben Ordner liegen
     (gltf) => {
       model = gltf.scene;
       model.scale.setScalar(0.2);
