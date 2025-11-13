@@ -101,6 +101,7 @@ function init() {
     console.log('🚀 AR Session gestartet');
     desktopInfo.classList.add('hidden');
     arInfo.classList.remove('hidden');
+    // Buttons bleiben sichtbar - sie sind schon da!
     
     if (mapModel) {
       mapModel.visible = false;
@@ -116,6 +117,7 @@ function init() {
     console.log('🛑 AR Session beendet');
     desktopInfo.classList.remove('hidden');
     arInfo.classList.add('hidden');
+    // Buttons bleiben sichtbar!
     poiCard.classList.add('hidden');
     
     if (mapModel) {
@@ -316,10 +318,16 @@ function createCharacter() {
 }
 
 function updateMarkerPosition() {
-  if (!activeMarker) return;
+  if (!activeMarker) {
+    console.warn('⚠️ Marker existiert noch nicht!');
+    return;
+  }
   
   const currentPOI = pointsOfInterest[currentPOIIndex];
-  if (!currentPOI.position) return;
+  if (!currentPOI.position) {
+    console.warn('⚠️ POI hat keine Position:', currentPOI.name);
+    return;
+  }
 
   const targetPos = new THREE.Vector3(
     currentPOI.position.x,
@@ -327,23 +335,36 @@ function updateMarkerPosition() {
     currentPOI.position.z
   );
 
+  console.log(`📍 Bewege Marker zu: ${currentPOI.name}`, {
+    from: activeMarker.position.clone(),
+    to: targetPos,
+    index: currentPOIIndex
+  });
+
   // Animiere Marker zur neuen Position
   animateMarkerTo(targetPos);
   
   // Aktualisiere UI
   updateTourUI();
-  
-  console.log(`📍 Marker bewegt sich zu: ${currentPOI.name} (${currentPOIIndex + 1}/${pointsOfInterest.length})`);
 }
 
 function animateMarkerTo(targetPos) {
-  if (!activeMarker) return;
+  if (!activeMarker) {
+    console.warn('⚠️ Marker existiert nicht für Animation!');
+    return;
+  }
 
   const startPos = activeMarker.position.clone();
   const duration = 1000;
   const startTime = Date.now();
 
-  function animate() {
+  console.log('🎬 Starte Marker-Animation:', {
+    start: startPos,
+    target: targetPos,
+    duration: duration
+  });
+
+  function animateStep() {
     const elapsed = Date.now() - startTime;
     const progress = Math.min(elapsed / duration, 1);
 
@@ -354,7 +375,8 @@ function animateMarkerTo(targetPos) {
     activeMarker.position.lerpVectors(startPos, targetPos, eased);
     
     // Hüpf-Effekt
-    activeMarker.position.y = targetPos.y + Math.sin(progress * Math.PI * 2) * 30;
+    const jumpHeight = Math.sin(progress * Math.PI * 2) * 30;
+    activeMarker.position.y = targetPos.y + jumpHeight;
 
     // Pulsiere während der Bewegung
     const sphere = activeMarker.children[1];
@@ -363,13 +385,14 @@ function animateMarkerTo(targetPos) {
     }
 
     if (progress < 1) {
-      requestAnimationFrame(animate);
+      requestAnimationFrame(animateStep);
     } else {
       activeMarker.position.copy(targetPos);
+      console.log('✅ Animation beendet, finale Position:', activeMarker.position);
     }
   }
 
-  animate();
+  animateStep();
 
   // Bewege auch Character
   if (character) {
@@ -414,11 +437,14 @@ function goToNextPOI() {
   // Markiere aktuelles POI als besucht
   visitedPOIs.add(pointsOfInterest[currentPOIIndex].id);
   
+  // Wechsle zum nächsten POI
+  const oldIndex = currentPOIIndex;
   currentPOIIndex = (currentPOIIndex + 1) % pointsOfInterest.length;
+  
+  console.log(`➡️ Wechsel von POI ${oldIndex + 1} zu ${currentPOIIndex + 1}: ${pointsOfInterest[currentPOIIndex].name}`);
+  
   updateMarkerPosition();
   poiCard.classList.add('hidden');
-  
-  console.log('➡️ Nächstes POI:', pointsOfInterest[currentPOIIndex].name);
 }
 
 function goToPrevPOI() {
