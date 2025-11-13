@@ -179,15 +179,31 @@ function loadMapModel() {
     createSingleMarker();
     createCharacter();
     
-    // Positioniere Marker zur ersten Sehenswürdigkeit
-    updateMarkerPosition();
+    // WICHTIG: Warte bis Marker erstellt ist, dann positioniere
+    if (activeMarker) {
+      // Setze initiale Position DIREKT ohne Animation
+      const firstPOI = pointsOfInterest[0];
+      if (firstPOI.position) {
+        activeMarker.position.set(
+          firstPOI.position.x,
+          firstPOI.position.y + 15,
+          firstPOI.position.z
+        );
+        console.log('📍 Marker initial positioniert bei:', firstPOI.name);
+      }
+    }
+    
+    // Aktualisiere UI
+    updateTourUI();
     
     setupDesktopView();
     mapModel.visible = true;
 
     console.log('✅ Modell geladen:', {
       originalMaxDim: mapModel.userData.originalMaxDim,
-      pois: pointsOfInterest.length
+      pois: pointsOfInterest.length,
+      firstPOI: pointsOfInterest[0].name,
+      markerPosition: activeMarker ? activeMarker.position : 'null'
     });
 
   }, undefined, (error) => {
@@ -201,6 +217,11 @@ function findPOIPositions() {
   const modelCenter = mapModel.userData.originalCenter;
 
   console.log('🔍 Suche POI-Objekte im Modell...');
+  console.log('   originalMaxDim:', originalMaxDim);
+  console.log('   modelCenter:', modelCenter);
+  console.log('   normalizeScale:', normalizeScale);
+
+  let foundCount = 0;
 
   mapModel.traverse((child) => {
     pointsOfInterest.forEach((poi) => {
@@ -217,10 +238,17 @@ function findPOIPositions() {
           z: (center.z - modelCenter.z) * normalizeScale
         };
         
-        console.log(`✓ ${poi.name}:`, poi.position);
+        foundCount++;
+        console.log(`✓ ${poi.name}:`, {
+          x: poi.position.x.toFixed(4),
+          y: poi.position.y.toFixed(4),
+          z: poi.position.z.toFixed(4)
+        });
       }
     });
   });
+
+  console.log(`📊 ${foundCount}/${pointsOfInterest.length} POIs gefunden`);
 
   // Fallback für POIs ohne Position
   pointsOfInterest.forEach((poi, index) => {
@@ -232,7 +260,7 @@ function findPOIPositions() {
         y: 0,
         z: Math.sin(angle) * radius
       };
-      console.warn(`⚠️ Fallback Position für: ${poi.name}`);
+      console.warn(`⚠️ Fallback Position für: ${poi.name}`, poi.position);
     }
   });
 }
@@ -319,13 +347,13 @@ function createCharacter() {
 
 function updateMarkerPosition() {
   if (!activeMarker) {
-    console.warn('⚠️ Marker existiert noch nicht!');
+    console.error('❌ Marker existiert nicht!');
     return;
   }
   
   const currentPOI = pointsOfInterest[currentPOIIndex];
   if (!currentPOI.position) {
-    console.warn('⚠️ POI hat keine Position:', currentPOI.name);
+    console.error('❌ POI hat keine Position:', currentPOI.name);
     return;
   }
 
@@ -335,11 +363,9 @@ function updateMarkerPosition() {
     currentPOI.position.z
   );
 
-  console.log(`📍 Bewege Marker zu: ${currentPOI.name}`, {
-    from: activeMarker.position.clone(),
-    to: targetPos,
-    index: currentPOIIndex
-  });
+  console.log(`📍 Bewege Marker zu: ${currentPOI.name}`);
+  console.log('   Von:', activeMarker.position);
+  console.log('   Nach:', targetPos);
 
   // Animiere Marker zur neuen Position
   animateMarkerTo(targetPos);
@@ -350,21 +376,26 @@ function updateMarkerPosition() {
 
 function animateMarkerTo(targetPos) {
   if (!activeMarker) {
-    console.warn('⚠️ Marker existiert nicht für Animation!');
+    console.error('❌ Marker fehlt für Animation!');
     return;
   }
 
   const startPos = activeMarker.position.clone();
+  
+  // Prüfe ob Start und Ziel unterschiedlich sind
+  const distance = startPos.distanceTo(targetPos);
+  console.log('   Distanz:', distance.toFixed(3));
+  
+  if (distance < 0.001) {
+    console.log('⚠️ Marker ist bereits am Ziel');
+    activeMarker.position.copy(targetPos);
+    return;
+  }
+
   const duration = 1000;
   const startTime = Date.now();
 
-  console.log('🎬 Starte Marker-Animation:', {
-    start: startPos,
-    target: targetPos,
-    duration: duration
-  });
-
-  function animateStep() {
+  function animate() {
     const elapsed = Date.now() - startTime;
     const progress = Math.min(elapsed / duration, 1);
 
@@ -375,8 +406,7 @@ function animateMarkerTo(targetPos) {
     activeMarker.position.lerpVectors(startPos, targetPos, eased);
     
     // Hüpf-Effekt
-    const jumpHeight = Math.sin(progress * Math.PI * 2) * 30;
-    activeMarker.position.y = targetPos.y + jumpHeight;
+    activeMarker.position.y = targetPos.y + Math.sin(progress * Math.PI * 2) * 30;
 
     // Pulsiere während der Bewegung
     const sphere = activeMarker.children[1];
@@ -385,14 +415,14 @@ function animateMarkerTo(targetPos) {
     }
 
     if (progress < 1) {
-      requestAnimationFrame(animateStep);
+      requestAnimationFrame(animate);
     } else {
       activeMarker.position.copy(targetPos);
-      console.log('✅ Animation beendet, finale Position:', activeMarker.position);
+      console.log('✅ Marker Animation abgeschlossen:', activeMarker.position);
     }
   }
 
-  animateStep();
+  animate();
 
   // Bewege auch Character
   if (character) {
@@ -437,14 +467,11 @@ function goToNextPOI() {
   // Markiere aktuelles POI als besucht
   visitedPOIs.add(pointsOfInterest[currentPOIIndex].id);
   
-  // Wechsle zum nächsten POI
-  const oldIndex = currentPOIIndex;
   currentPOIIndex = (currentPOIIndex + 1) % pointsOfInterest.length;
-  
-  console.log(`➡️ Wechsel von POI ${oldIndex + 1} zu ${currentPOIIndex + 1}: ${pointsOfInterest[currentPOIIndex].name}`);
-  
   updateMarkerPosition();
   poiCard.classList.add('hidden');
+  
+  console.log('➡️ Nächstes POI:', pointsOfInterest[currentPOIIndex].name);
 }
 
 function goToPrevPOI() {
