@@ -1,25 +1,16 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <title>AR Hit Test – einmaliges Platzieren</title>
+  <title>mapBremerhaven – AR Platzierung</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
-    body { margin: 0; overflow: hidden; font-family: sans-serif; }
-    #info {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 1;
-      color: #fff;
-      background: rgba(0,0,0,0.4);
-      padding: 4px 8px;
-      border-radius: 4px;
-    }
+    body { margin: 0; overflow: hidden; background: #000; }
+    #container { width: 100%; height: 100%; }
   </style>
 </head>
 <body>
-  <div id="info">three.js — AR Hit Test (einmaliges Platzieren)</div>
+  <div id="container"></div>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
